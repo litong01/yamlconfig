@@ -7,7 +7,7 @@ Usage:
 ======
 Source the yaml_config file into your environment and start run various
 commands provided by the script, after satisfaction, save the items from
-the yaml into a file.
+the original yaml and new items into a yaml file.
 
 All commands provided by the script will require a namespace to be specified
 as the very first parameter, this is to avoid the conflict when an application
