@@ -1,16 +1,24 @@
 Introduction
 ============
-This project provides one single bash script to manage yaml
-file.
+This project provides one single bash script for managing yaml
+files.
 
 Usage:
 ======
+Source the yaml_config file into your environment and start run various
+commands provided by the script, after satisfaction, save the items from
+the yaml into a file.
+
 All commands provided by the script will require a namespace to be specified
 as the very first parameter, this is to avoid the conflict when an application
 may need to deal with multiple yaml configuration files at the same time.
 Each command will take the format like the following::
 
     function_name namespace key value
+
+Make the functions available::
+
+    source yaml-config
 
 Load an existing yaml file:
 
