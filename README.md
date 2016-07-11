@@ -90,6 +90,7 @@ Command examples:
 Usage example:
 
     Assume you have a yaml file named servers.yml and it likes this::
+    
         host:
           name: "database_server"
           ip: "192.168.5.23"
@@ -113,6 +114,7 @@ Usage example:
           name: "database_server"
           ip: "192.168.5.23"
           access_port: 81
+          
         zone:
           owner: Fred
           region: American
