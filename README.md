@@ -5,9 +5,10 @@ files.
 
 Usage:
 ======
-Source the yaml_config file into your environment and start run various
-commands provided by the script, after satisfaction, save the items from
-the original yaml and new items into a yaml file.
+Down load yaml_config file and place in a directory, then source the yaml_config
+file into your environment. Load an existing yaml file or simply start setting up
+new varilables with the commands provided by the script.  After satisfaction, save
+the items from the original yaml and new items into a yaml file.
 
 All commands provided by the script will require a namespace to be specified
 as the very first parameter, this is to avoid the conflict when an application
@@ -74,7 +75,7 @@ Other useful commands::
     get_yaml_values
     del_yaml_values
 
-Examples:
+Command examples:
 
     del_yaml_values 'myyamlfile__'
     clear all the variables in namespace myyamlfile__
@@ -85,3 +86,38 @@ Examples:
 
     get_yaml_keys 'myyamlfile__'
     list all the keys in namespace 'myyamlfile__'
+
+Usage example:
+
+    Assume you have a yaml file named servers.yml and it likes this::
+        host:
+          name: "database_server"
+          ip: "192.168.5.23"
+          access_port: 80
+          
+    
+    Assume you would like to add the following two new members and
+    change access_port to 81 and then save the file, here is how you
+    can do this::
+    
+        source yaml_config
+        load_yaml 'example__' servers.yml
+        set_yaml_value 'example__' 'host.access_port' 81
+        set_yaml_value 'example__' 'zone.owner' 'Fred'
+        set_yaml_value 'example__' 'zone.region' 'American'
+        save_normal_yaml 'example__' servers.yml
+        
+    The above commands will produce a new file like the following:
+    
+        host:
+          name: "database_server"
+          ip: "192.168.5.23"
+          access_port: 81
+        zone:
+          owner: Fred
+          region: American
+    
+
+Restrictions:
+1. Yaml file must use two spaces for indentation.
+2. Comments in the yaml file will be lost.
