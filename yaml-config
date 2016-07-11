@@ -1,0 +1,225 @@
+#!/bin/bash
+
+# This is the library to handle yaml files. The library will allow you
+# to load a yaml file and access each member, and also allow you to save
+# variables to a new yaml file. The only limitation is that the name of
+# yaml variables can not contain string _TTT0LLL_ since that string
+# is used as a delimiter in the program. Also the yaml file has to use 2
+# spaces as the indention, any spacing other than 2 will cause problems.
+
+parse_yaml() {
+    local prefix=$2
+    local s
+    local w
+    local fs
+    s='[[:space:]]*'
+    w='[a-zA-Z0-9_]*'
+    fs="$(echo @|tr @ '\034')"
+    sed -ne "s|^\($s\)\($w\)$s:$s\"\(.*\)\"$s\$|\1$fs\2$fs\3|p" \
+        -e "s|^\($s\)\($w\)$s[:-]$s\(.*\)$s\$|\1$fs\2$fs\3|p" "$1" |
+    awk -F"$fs" '{
+    indent = length($1)/2;
+    vname[indent] = $2;
+    for (i in vname) {if (i > indent) {delete vname[i]}}
+        if (length($3) > 0) {
+            vn=""; for (i=0; i<indent; i++) {vn=(vn)(vname[i])("_TTT0LLL_")}
+            printf("%s%s%s=(\"%s\")\n", "'"$prefix"'",vn, $2, $3);
+        }
+    }' | sed 's/_TTT0LLL_=/+=/g'
+}
+
+parse_flat_yaml() {
+    local prefix=$2
+    grep -P "^([a-zA-Z0-9_]*\.)+[a-zA-Z0-9_]+:[ ]*.+$" $1 | sort | while read line
+    do
+        local key; local val
+        IFS=':' read -r key val <<< "$line"
+        key=${key//./_TTT0LLL_}
+        # Strip leading and trailing spaces
+        val="$(sed -e 's/[[:space:]]*$//' <<<${val})"
+        local cmd="${prefix}${key}='${val}'"
+        echo $cmd
+    done
+}
+
+# Load a yaml file as a set of environment variables.
+# Usage:
+#   load_yaml 'leap_' '/onvm/conf/nodes.conf.yml'
+function load_yaml {
+   eval $(parse_yaml $2 $1)
+   eval $(parse_flat_yaml $2 $1)
+}
+
+# save environments variables with given starting string into a yaml file
+# Usage:
+#   save_yaml 'leap_' '/etc/test/a_yaml_file.yml' 
+function save_yaml {
+   echo '---' > $2
+   echo '#ES-Install Generated Configurations' >> $2
+   set | sed -n -e "/^$1/p" | sort | while read line
+   do
+      local key; local rawkey; local val
+      # now split the line by the equal sign into two pieces
+      IFS='=' read -r rawkey val <<< "$line"
+      # Get rid of the prefix
+      local key="${rawkey/$1/}"
+      key=${key//_TTT0LLL_/.}
+      if [ ! -z "$key" ]; then
+         eval val=\$${rawkey}
+         echo "${key}: $val" >> $2
+      fi
+   done
+}
+
+function yjoin { local IFS="$1"; shift; echo "$*"; }
+
+# save environments variables with given starting string into a normal 2 space
+# indented yaml file
+# Usage:
+#   save_normal_yaml 'leap_' '/etc/test/a_yaml_file.yml' 
+function save_normal_yaml {
+   local prekeys=('' '' '' '' '' '' '' '' '' '')
+   local keys
+   echo '---' > $2
+   echo '#ES-Install Generated Configurations' >> $2
+   set | sed -n -e "/^$1/p" | sort | while read line
+   do
+      local key; local rawkey; local val;
+      # now split the line by the equal sign into two pieces
+      IFS='=' read -r rawkey val <<< "$line"
+      # Get rid of the prefix
+      key="${rawkey/$1/}"
+      key=${key//_TTT0LLL_/.}
+      if [ ! -z "$key" ]; then
+         IFS='.' read -r -a keys <<< "$key"
+         local padding=''
+         local prekeyslength=${#prekeys[@]}
+         local keyslength=${#keys[@]}
+         klastindex=$(($keyslength-1))
+
+         for ((i=0;i<$keyslength;i++))
+         do
+           if [[ $i -lt $prekeyslength ]]; then
+             if [[ ${keys[$i]} = ${prekeys[$i]} ]]; then
+               padding="${padding}  "
+             else
+               prekeyslength=0
+               (( i -= 1 ))
+             fi
+           elif [[ $i -lt $klastindex ]]; then
+             if [[ -z "$padding" ]]; then
+               echo "" >> $2
+             fi
+             echo "${padding}${keys[$i]}:" >> $2
+             padding="${padding}  "
+           else
+             eval flag="\$\{${rawkey}[1]}"; eval flag="${flag}"
+             if [[ -z "$flag" ]]; then 
+               eval val="\$\{${rawkey}}"; eval val="${val}"
+               ttval="${padding}${keys[$i]}: ${val}"
+             else
+               eval val='$(yjoin , ${'"${rawkey}"'[@]})'
+               eval val="${val}"
+               ttval="${padding}${keys[$i]}: [${val}]"
+             fi
+             if [[ -z "$padding" ]]; then
+               echo "" >> $2
+             fi
+             echo "$ttval" >> $2
+           fi
+         done
+         prekeys=( "${keys[@]}" )
+      fi
+   done
+}
+
+# set environments variable with given value
+# Usage:
+#   set_yaml_value 'leap_' 'name' 'value'
+function set_yaml_value {
+   local name=$2
+   name=${name//./_TTT0LLL_}
+   eval $1$name='$3'
+}
+
+# get environments variable with given name
+# Usage:
+#   get_yaml_value 'leap_' 'name'
+function get_yaml_value {
+   local name=$2
+   name=$1${name//./_TTT0LLL_}
+   eval name=\$${name}
+   echo $name
+}
+
+# delete environments variable with given name
+# Usage:
+#   del_yaml_value 'leap_' 'name'
+# above command will remove an environment variable named leap_name
+function del_yaml_value {
+   local name=$2
+   name=${name//./_TTT0LLL_}
+   unset $1$name
+}
+
+# clear varilables whose name start with the given value
+# Usage:
+#   del_yaml_values 'leap_' 'name'
+# above command will remove all variables starts with name in 'leap_'
+# namespace.
+# if leave the second parameter blank, the command will remove all the
+# variables starts in the 'leap_' namespace
+function del_yaml_values {
+   local name=$2
+   name=${name//./_TTT0LLL_}
+   list=`set | sed -n -e "/^$1$name/p" | awk -F= '/^\w/ {print $1}' | xargs`
+   if [[ "$list" ]]; then
+      local allkeys=($list)
+      for key in "${allkeys[@]}"
+      do
+         eval "unset -v $key"
+      done
+   fi
+}
+
+# get all the values whose name starts with the given value
+# Usage:
+#   get_yaml_values 'leap_' 'name.name1'
+# above command will return all the variables valeus starts with name.name1 in
+# 'leap_' name space.
+# if leave the second parameter blank, the command will return all the
+# variable values in the namespace leap_
+function get_yaml_values {
+   local name=$2
+   name=${name//./_TTT0LLL_}
+   list=`set | sed -n -e "/^$1$name/p" | awk -F= '/^\w/ {print $1}' | xargs`
+   if [[ "$list" ]]; then
+      local allkeys=($list)
+      for key in "${allkeys[@]}"
+      do
+         eval "echo \$${key[@]}"
+      done
+   fi
+}
+
+# get the key names starting with the given value
+# Usage:
+#   get_yaml_keys 'leap_' 'name.name1'
+# above command will list all the key names start with name.name1
+# if leave the second parameter blank, the command will list all the key names
+# in 'leap_' namespace
+function get_yaml_keys {
+   local name=$2
+   name=${name//./_TTT0LLL_}
+   list=`set | sed -n -e "/^$1$name/p" | awk -F= '/^\w/ {print $1}' | xargs`
+   if [[ "$list" ]]; then
+      local allkeys=($list)
+      local val
+      for key in "${allkeys[@]}"
+      do
+         val="${key/$1/}"
+         val=${val//_TTT0LLL_/.}
+         echo $val
+      done
+   fi
+}
